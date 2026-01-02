@@ -99,10 +99,10 @@ void handle_client_request(int client_socket_fd) {
     char *buffer = calloc(BUFFER_SIZE, 1);
     ssize_t bytes_read = read(client_socket_fd, buffer, BUFFER_SIZE - 1);
     if (bytes_read < 0) {
-        log_msg("Read from client failed");
+        log_msg("Read from client failed\n");
     } else if (bytes_read == 0) {
         free(buffer);
-        log_msg("Client disconnected.\n");
+        log_msg("Client disconnected\n");
         return;
     }
     buffer[bytes_read] = '\0';
@@ -117,10 +117,10 @@ void handle_client_request(int client_socket_fd) {
         if (strcmp(calculation, "Invalid query format") == 0 ||
             strcmp(calculation, "Unsupported operator") == 0 ||
             strcmp(calculation, "Overflow error") == 0) {
-            snprintf(response, BUFFER_SIZE, "HTTP/1.1 400 Bad Request\r\nContent-Length:%zu\r\n\r\n%s", 
+            snprintf(response, BUFFER_SIZE, "HTTP/1.1 400 Bad Request\r\nContent-Length: %zu\r\n\r\n%s", 
                 response_body_length, calculation);
         } else {
-            snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length:%zu\r\n\r\n%s", 
+            snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n%s", 
             response_body_length, calculation);
         }
 
@@ -129,7 +129,7 @@ void handle_client_request(int client_socket_fd) {
         while (sent_len < response_len) {
             ssize_t n = write(client_socket_fd, response + sent_len, response_len - sent_len);
             if (n < 0) {
-                log_msg("Write to client failed");
+                log_msg("Write to client failed\n");
                 break;
             }
             sent_len += n;
@@ -138,7 +138,7 @@ void handle_client_request(int client_socket_fd) {
         free(response);
         free(calculation);
     } else {
-        log_msg("Unsupported request method");
+        log_msg("Unsupported request method\n");
     }
     free(buffer);
 }

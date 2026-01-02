@@ -18,9 +18,9 @@ void log_msg(const char *format, ...) {
     va_end(args);
 }
 
-int initialize_socket(const char* IPversion) {
+int initialize_socket(const char* ip_version) {
     // ソケットの初期化 (IPv4: AF_INET, IPv6: AF_INET6)
-    int domain = (strcmp(IPversion, "IPv6") == 0) ? AF_INET6 : AF_INET;
+    int domain = (strcmp(ip_version, "IPv6") == 0) ? AF_INET6 : AF_INET;
     int tcp_socket = socket(domain, SOCK_STREAM, 0);
     if (tcp_socket < 0) handle_error("Socket creation failed");
 

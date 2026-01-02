@@ -3,7 +3,7 @@
 
 void handle_error(const char *msg);
 void log_msg(const char *format, ...);
-int initialize_socket();
+int initialize_socket(const char *ip_version);
 void close_socket(int socket_fd);
 
 #endif // UTILS_H
