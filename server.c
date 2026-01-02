@@ -12,7 +12,7 @@
 #define PORT_NUMBER 8080
 #define IP_VERSION "IPv4"
 #define LISTEN_BACKLOG 5
-#define BUFFER_SIZE 64
+#define BUFFER_SIZE 128
 
 volatile sig_atomic_t is_server_running = 1;
 
@@ -113,9 +113,17 @@ void handle_client_request(int client_socket_fd) {
         char *calculation = calculate_query(buffer + 10);
         char *response = calloc(BUFFER_SIZE, 1);
         size_t response_body_length = strlen(calculation);
-        snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length:%zu\r\n\r\n%s", 
+
+        if (strcmp(calculation, "Invalid query format") == 0 ||
+            strcmp(calculation, "Unsupported operator") == 0 ||
+            strcmp(calculation, "Overflow error") == 0) {
+            snprintf(response, BUFFER_SIZE, "HTTP/1.1 400 Bad Request\r\nContent-Length:%zu\r\n\r\n%s", 
+                response_body_length, calculation);
+        } else {
+            snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length:%zu\r\n\r\n%s", 
             response_body_length, calculation);
-        
+        }
+
         size_t response_len = strlen(response);
         size_t sent_len = 0;
         while (sent_len < response_len) {

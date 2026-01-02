@@ -9,7 +9,7 @@
 #define PORT_NUMBER 8080
 #define SERVER_IP "127.0.0.1"
 #define IP_VERSION "IPv4"
-#define BUFFER_SIZE 64
+#define BUFFER_SIZE 128
 
 void connect_client_to_server(int client_socket_fd) {
     // サーバアドレス構造体
