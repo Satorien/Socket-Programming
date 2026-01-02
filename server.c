@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -9,12 +10,14 @@
 #include "utils.h"
 
 #define PORT_NUMBER 8080
+#define IP_VERSION "IPv4"
 #define LISTEN_BACKLOG 5
 #define BUFFER_SIZE 64
 
 volatile sig_atomic_t is_server_running = 1;
 
-void signal_handler() {
+void signal_handler(int signum) {
+    (void)signum;
     is_server_running = 0;
 }
 
@@ -62,39 +65,85 @@ char* calculate_query(const char *query) {
     char operator;
     char *buffer = calloc(BUFFER_SIZE, 1);
     sscanf(query, "query=%d%c%d", &operand1, &operator, &operand2);
+
+    char *extracted_query = calloc(BUFFER_SIZE, 1);
+    snprintf(extracted_query, BUFFER_SIZE, "query=%d%c%d", operand1, operator, operand2);
+    size_t extracted_len = strlen(extracted_query);
+    if (extracted_len > 0 && (strncmp(query, extracted_query, extracted_len) != 0)) {
+        log_msg("Malformed query: %s\n", query);
+        snprintf(buffer, BUFFER_SIZE, "Invalid query format");
+        free(extracted_query);
+        return buffer;
+    }
+    free(extracted_query);
+
     switch (operator) {
-        case '+': snprintf(buffer, BUFFER_SIZE, "%d", operand1 + operand2); return buffer;
-        default: handle_error("Unsupported operator"); return NULL;
+        case '+':
+            if ((operand2 > 0 && operand1 > INT_MAX - operand2) ||
+                (operand2 < 0 && operand1 < INT_MIN - operand2)) {
+                snprintf(buffer, BUFFER_SIZE, "Overflow error");
+                log_msg("Overflow detected: %d + %d\n", operand1, operand2);
+            } else {
+                snprintf(buffer, BUFFER_SIZE, "%d", operand1 + operand2);
+            }
+            return buffer;
+        default:
+            log_msg("Unsupported operator: %c\n", operator);
+            snprintf(buffer, BUFFER_SIZE, "Unsupported operator");
+            return buffer;
     }
 }
 
 void handle_client_request(int client_socket_fd) {
     // リクエストの処理
     char *buffer = calloc(BUFFER_SIZE, 1);
-    read(client_socket_fd, buffer, BUFFER_SIZE - 1);
+    ssize_t bytes_read = read(client_socket_fd, buffer, BUFFER_SIZE - 1);
+    if (bytes_read < 0) {
+        log_msg("Read from client failed");
+    } else if (bytes_read == 0) {
+        free(buffer);
+        log_msg("Client disconnected.\n");
+        return;
+    }
+    buffer[bytes_read] = '\0';
     log_msg("Request received:\n%s\n", buffer);
 
     // /calc エンドポイントの処理
     if (strncmp(buffer, "GET /calc?", 10) == 0) {
         char *calculation = calculate_query(buffer + 10);
-        char response[512];
-        snprintf(response, sizeof(response), "HTTP/1.1 200 OK\r\nContent-Length:2\r\n\r\n%s", calculation);
-        write(client_socket_fd, response, strlen(response));
+        char *response = calloc(BUFFER_SIZE, 1);
+        size_t response_body_length = strlen(calculation);
+        snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length:%zu\r\n\r\n%s", 
+            response_body_length, calculation);
+        
+        size_t response_len = strlen(response);
+        size_t sent_len = 0;
+        while (sent_len < response_len) {
+            ssize_t n = write(client_socket_fd, response + sent_len, response_len - sent_len);
+            if (n < 0) {
+                log_msg("Write to client failed");
+                break;
+            }
+            sent_len += n;
+        }
         log_msg("Response sent:\n%s\n", response);
+        free(response);
+        free(calculation);
     } else {
-        handle_error("Unsupported request method");
+        log_msg("Unsupported request method");
     }
+    free(buffer);
 }
 
 int main(){
     // ソケットの初期化
-    int server_socket = initialize_socket();
+    int server_socket = initialize_socket(IP_VERSION);
     log_msg("Server socket initialized.\n");
 
     // アドレスの再利用を有効化
     int optval = 1;
     if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval)) == -1) {
-        handle_error("setsockopt SO_REUSEADDR failed");
+        log_msg("setsockopt SO_REUSEADDR failed");
     }
 
     // ソケットのバインド
